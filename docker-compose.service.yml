@@ -1,0 +1,65 @@
+services:
+  hhoj-backend-gateway:
+    container_name: hhoj-backend-gateway
+    build:
+      context: ./hhoj-backend-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8181:8181"
+    networks:
+      - mynetwork
+
+  hhoj-backend-user-service:
+    container_name: hhoj-backend-user-service
+    build:
+      context: ./hhoj-backend-user-service
+      dockerfile: Dockerfile
+    ports:
+      - "8102:8102"
+    networks:
+      - mynetwork
+    depends_on:
+      - hhoj-backend-gateway
+
+  hhoj-backend-question-service:
+    container_name: hhoj-backend-question-service
+    build:
+      context: ./hhoj-backend-question-service
+      dockerfile: Dockerfile
+    ports:
+      - "8103:8103"
+    networks:
+      - mynetwork
+    depends_on:
+      - hhoj-backend-gateway
+
+  hhoj-backend-comment-service:
+    container_name: hhoj-backend-comment-service
+    build:
+      context: ./hhoj-backend-comment-service
+      dockerfile: Dockerfile
+    ports:
+      - "8104:8104"
+    networks:
+      - mynetwork
+    depends_on:
+      - hhoj-backend-user-service
+      - hhoj-backend-gateway
+
+  hhoj-backend-judge-service:
+    container_name: hhoj-backend-judge-service
+    build:
+      context: ./hhoj-backend-judge-service
+      dockerfile: Dockerfile
+    ports:
+      - "8105:8105"
+    networks:
+      - mynetwork
+    depends_on:
+      - hhoj-backend-user-service
+      - hhoj-backend-question-service
+      - hhoj-backend-gateway
+
+# 网络，不定义的话就是默认网络
+networks:
+  mynetwork:
