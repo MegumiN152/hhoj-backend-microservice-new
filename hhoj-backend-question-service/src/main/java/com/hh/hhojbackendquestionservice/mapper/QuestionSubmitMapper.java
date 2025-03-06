@@ -30,6 +30,8 @@ public interface QuestionSubmitMapper extends BaseMapper<QuestionSubmit> {
             "ORDER BY solvedCount DESC,submitCount ASC\n" +
             "LIMIT #{limit}")
     List<UserLeaderboardVO> getLeaderBoard(@Param("limit") int i);
+    @Select("SELECT count(DISTINCT questionId) FROM question_submit WHERE userId=#{userId} AND status=2")
+    Integer getSolvedCount(@Param("userId")long userId);
 }
 
 

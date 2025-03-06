@@ -230,13 +230,11 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
     public UserStatsVO getUserStats(Long id) {
         UserStatsVO userStatsVO = new UserStatsVO();
         //查询用户提交数
-        LambdaQueryWrapper<QuestionSubmit> questionSubmitLambdaQueryWrapper = new LambdaQueryWrapper<>();
-        questionSubmitLambdaQueryWrapper.eq(QuestionSubmit::getUserId, id);
+        QueryWrapper<QuestionSubmit> questionSubmitLambdaQueryWrapper = new QueryWrapper<>();
+        questionSubmitLambdaQueryWrapper.eq("userId", id);
         int submitCount = (int) this.count(questionSubmitLambdaQueryWrapper);
         //查询用户成功提交数
-        questionSubmitLambdaQueryWrapper.eq(QuestionSubmit::getStatus, QuestionSubmitStatusEnum.SUCCEED.getValue());
-        questionSubmitLambdaQueryWrapper.groupBy(QuestionSubmit::getQuestionId);
-        int solvedCount = (int) this.count(questionSubmitLambdaQueryWrapper);
+        int solvedCount = questionSubmitMapper.getSolvedCount(id);
         //计算通过率,保留两位小数
         double passRate= submitCount>0 ?(double)solvedCount/submitCount*100 :0;
         userStatsVO.setSubmitCount(submitCount);
