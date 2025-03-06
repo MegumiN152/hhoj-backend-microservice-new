@@ -9,6 +9,7 @@ import com.hh.hhojbackendmodel.enums.JudgeInfoMessageEnum;
 
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * @author 黄昊
@@ -29,15 +30,15 @@ public class DefaultJudgeStrategy implements JudgeStrategy {
         Question question = judgeContext.getQuestion();
         List<JudgeCase> judgeCaseList = judgeContext.getJudgeCaseList();
         //代码执行实际的内存和时间
-        Long memory = judgeInfo.getMemory();
-        Long time = judgeInfo.getTime();
+        Long memory = Optional.ofNullable(judgeInfo.getMemory()).orElse(0L);
+        Long time = Optional.ofNullable(judgeInfo.getTime()).orElse(0L);
         //根据执行结果，判断题目的判题状态和信息
         JudgeInfoMessageEnum judgeInfoMessageEnum = JudgeInfoMessageEnum.ACCEPTED;
         JudgeInfo judgeInfoResponse = new JudgeInfo();
         judgeInfoResponse.setMessage(judgeInfoMessageEnum.getValue());
         judgeInfoResponse.setMemory(memory);
         judgeInfoResponse.setTime(time);
-        if(judgeContext.getMessage().contains(JudgeInfoMessageEnum.COMPILE_ERROR.getValue())){
+        if(judgeContext.getMessage()!=null &&judgeContext.getMessage().contains(JudgeInfoMessageEnum.COMPILE_ERROR.getValue())){
             judgeInfoMessageEnum = JudgeInfoMessageEnum.COMPILE_ERROR;
             judgeInfoResponse.setMessage(judgeInfoMessageEnum.getValue());
             return judgeInfoResponse;

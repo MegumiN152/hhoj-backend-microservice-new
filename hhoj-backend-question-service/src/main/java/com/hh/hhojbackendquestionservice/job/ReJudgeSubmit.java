@@ -8,6 +8,7 @@ import com.hh.hhojbackendmodel.enums.QuestionSubmitStatusEnum;
 import com.hh.hhojbackendquestionservice.exception.BusinessException;
 import com.hh.hhojbackendquestionservice.mq.RabbitmqProducer;
 import com.hh.hhojbackendquestionservice.service.QuestionSubmitService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +22,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
+@Slf4j
 public class ReJudgeSubmit {
     @Resource
     private RabbitmqProducer rabbitmqProducer;
@@ -30,6 +32,7 @@ public class ReJudgeSubmit {
 
     @Scheduled(cron = "0 0/10 * * * ?")
     public void reJudge() {
+        log.info("定时任务-重新判题开始");
         QueryWrapper<QuestionSubmit> questionSubmitQueryWrapper = new QueryWrapper<>();
         questionSubmitQueryWrapper.eq("status", QuestionSubmitStatusEnum.JUDGING.getValue());
         // 获取当前时间
@@ -62,5 +65,6 @@ public class ReJudgeSubmit {
         for (QuestionSubmit questionSubmit : reJudgeList) {
             rabbitmqProducer.sendMessage(MqConstant.EXCHANGE_NAME, MqConstant.NORMAL_ROUTING_KEY, String.valueOf(questionSubmit.getId()));
         }
+        log.info("定时任务结束");
     }
 }
