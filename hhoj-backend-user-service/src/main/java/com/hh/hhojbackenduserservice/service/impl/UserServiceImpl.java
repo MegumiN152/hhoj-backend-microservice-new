@@ -18,16 +18,21 @@ import com.hh.hhojbackendmodel.vo.UserVO;
 import com.hh.hhojbackenduserservice.exception.BusinessException;
 import com.hh.hhojbackenduserservice.mapper.UserMapper;
 import com.hh.hhojbackenduserservice.service.UserService;
+import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 
+import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static com.hh.hhojbackendcommon.constant.UserConstant.USER_LOGIN_STATE;
@@ -46,6 +51,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * 盐值，混淆密码
      */
     public static final String SALT = "yupi";
+
+    @Resource
+    private RedisTemplate<String,String> redisTemplate;
 
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
@@ -220,10 +228,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
         LoginUserVO loginUserVO = this.getLoginUserVO(user);
         // 3. 记录用户的登录态
-        HashMap<String, Object> claims = new HashMap<>();
-        claims.put("userId",loginUserVO.getId());
-        claims.put("userRole",loginUserVO.getUserRole());
-        String token = JwtUtils.getToken(claims);
+        String token = JwtUtils.generateToken(loginUserVO.getId(),loginUserVO.getUserRole());
         loginUserVO.setToken(token);
         return loginUserVO;
     }
@@ -297,11 +302,29 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public boolean userLogout(HttpServletRequest request) {
-        if (request.getSession().getAttribute(USER_LOGIN_STATE) == null) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "未登录");
+        // 1. 从请求头中获取 Token
+        String token = request.getHeader("Authorization");
+        if (StringUtils.isBlank(token) || !token.startsWith("Bearer ")) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "未提供 Token");
         }
-        // 移除登录态
-        request.getSession().removeAttribute(USER_LOGIN_STATE);
+        token = token.substring(7); // 去除 "Bearer " 前缀
+
+        // 2. 解析 Token 获取过期时间（可选）
+        Claims claims = JwtUtils.parseToken(token);
+        Date expiration = claims.getExpiration();
+
+        // 3. 将 Token 加入黑名单（Redis）
+        long ttl = expiration.getTime() - System.currentTimeMillis();
+        if (ttl > 0) {
+            // 使用 Redis 存储黑名单，Key 格式：jwt:blacklist:<token>
+            redisTemplate.opsForValue().set(
+                    "jwt:blacklist:" + token,
+                    "logged_out",
+                    ttl,
+                    TimeUnit.MILLISECONDS
+            );
+        }
+
         return true;
     }
 

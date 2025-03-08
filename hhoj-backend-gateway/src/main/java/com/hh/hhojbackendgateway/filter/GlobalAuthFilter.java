@@ -2,11 +2,13 @@ package com.hh.hhojbackendgateway.filter;
 
 import cn.hutool.core.text.AntPathMatcher;
 import com.hh.hhojbackendcommon.utils.JwtUtils;
+import io.jsonwebtoken.Claims;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferFactory;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import javax.annotation.Resource;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
@@ -24,6 +27,9 @@ import java.util.Map;
 @Component
 public class GlobalAuthFilter implements GlobalFilter {
     private AntPathMatcher authPathMatcher=new AntPathMatcher();
+
+    @Resource
+    private RedisTemplate<String,String> redisTemplate;
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
@@ -41,12 +47,15 @@ public class GlobalAuthFilter implements GlobalFilter {
         if (StringUtils.isBlank(token)||!token.startsWith("Bearer ")){
             return writeError(exchange.getResponse(),"未提供token");
         }
+        // 新增：检查 Token 是否在黑名单中
+        if (Boolean.TRUE.equals(redisTemplate.hasKey("jwt:blacklist:" + token))) {
+            return writeError(exchange.getResponse(), "Token 已失效");
+        }
         try {
-            //4. 解析jwt
-            token=token.substring(7);
-            Map<String, Object> claims = JwtUtils.parseToken(token);
-            Object userId = claims.get("userId");
-            String userRole = (String)claims.get("userRole");
+            // 解析 JWT 并验证
+            Claims claims = JwtUtils.parseToken(token);
+            Long userId = claims.get("userId", Long.class);
+            String userRole = claims.get("role", String.class);
 
             //将用户信息添加到请求头中，传递给下游服务
             ServerHttpRequest newRequest = request.mutate()

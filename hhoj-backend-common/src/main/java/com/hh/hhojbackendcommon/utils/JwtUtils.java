@@ -1,36 +1,33 @@
 package com.hh.hhojbackendcommon.utils;
 
-import com.auth0.jwt.JWT;
-import com.auth0.jwt.algorithms.Algorithm;
-import com.auth0.jwt.exceptions.JWTVerificationException;
 
-import java.util.Map;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.*;
 import java.util.Date;
 
 public class JwtUtils {
     private static final String KEY = "hhoj_key_152";
 
-    //接收业务数据,生成token并返回
-    public static String getToken(Map<String, Object> claims) {
-        return JWT.create()
-                .withClaim("claims", claims)
-                .withExpiresAt(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 12))
-                .sign(Algorithm.HMAC256(KEY));
+    private static final Long EXPIRE_TIME=1000*60*60*24L;
+
+    // 生成 Token（包含用户 ID 和角色）
+    public static String generateToken(Long userId, String role) {
+        return Jwts.builder()
+                .setSubject(userId.toString())
+                .claim("role", role)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRE_TIME))
+                .signWith(SignatureAlgorithm.HS256, KEY)
+                .compact();
     }
 
-    //接收token,验证token,并返回业务数据
-    public static Map<String, Object> parseToken(String token) {
-        try {
-            Map<String, Object> claims = JWT.require(Algorithm.HMAC256(KEY))
-                    .build()
-                    .verify(token)
-                    .getClaim("claims")
-                    .asMap();
-            return claims;
-        } catch (JWTVerificationException e) {
-            // 处理 token 验证异常
-            throw new RuntimeException("Invalid token", e);
-        }
+    // 解析 Token
+    public static Claims parseToken(String token) {
+        return Jwts.parser()
+                .setSigningKey(KEY)
+                .parseClaimsJws(token)
+                .getBody();
     }
 
 }
