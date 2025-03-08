@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hh.hhojbackendcommon.common.ErrorCode;
 import com.hh.hhojbackendcommon.constant.CommonConstant;
 import com.hh.hhojbackendcommon.constant.UserConstant;
+import com.hh.hhojbackendcommon.utils.JwtUtils;
 import com.hh.hhojbackendcommon.utils.SqlUtils;
 import com.hh.hhojbackendmodel.dto.user.UserAddRequest;
 import com.hh.hhojbackendmodel.dto.user.UserQueryRequest;
@@ -25,6 +26,7 @@ import org.springframework.util.DigestUtils;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -159,7 +161,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     public boolean userUpdate(UserUpdateRequest userUpdateRequest) {
         Long id = userUpdateRequest.getId();
         String userName = userUpdateRequest.getUserName();
-        //todo 等我完成minio部署
         String userAvatar = userUpdateRequest.getUserAvatar();
         String userProfile = userUpdateRequest.getUserProfile();
         String userRole = userUpdateRequest.getUserRole();
@@ -217,9 +218,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             log.info("user login failed, userAccount cannot match userPassword");
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户不存在或密码错误");
         }
+        LoginUserVO loginUserVO = this.getLoginUserVO(user);
         // 3. 记录用户的登录态
-        request.getSession().setAttribute(USER_LOGIN_STATE, user);
-        return this.getLoginUserVO(user);
+        HashMap<String, Object> claims = new HashMap<>();
+        claims.put("userId",loginUserVO.getId());
+        claims.put("userRole",loginUserVO.getUserRole());
+        String token = JwtUtils.getToken(claims);
+        loginUserVO.setToken(token);
+        return loginUserVO;
     }
 
     /**
@@ -230,15 +236,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public User getLoginUser(HttpServletRequest request) {
-        // 先判断是否已登录
-        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
-        User currentUser = (User) userObj;
-        if (currentUser == null || currentUser.getId() == null) {
+        String userIdStr = request.getHeader("X-User-Id");
+        if (userIdStr==null || userIdStr.isEmpty()) {
             throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
         }
-        // 从数据库查询（追求性能的话可以注释，直接走缓存）
-        long userId = currentUser.getId();
-        currentUser = this.getById(userId);
+        long userId = Long.parseLong(userIdStr);
+        User currentUser = this.getById(userId);
         if (currentUser == null) {
             throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
         }
@@ -253,15 +256,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public User getLoginUserPermitNull(HttpServletRequest request) {
-        // 先判断是否已登录
-        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
-        User currentUser = (User) userObj;
-        if (currentUser == null || currentUser.getId() == null) {
+        String userIdStr = request.getHeader("X-User-Id");
+        if (userIdStr==null || userIdStr.isEmpty()) {
             return null;
         }
-        // 从数据库查询（追求性能的话可以注释，直接走缓存）
-        long userId = currentUser.getId();
-        return this.getById(userId);
+        long userId = Long.parseLong(userIdStr);
+        User currentUser = this.getById(userId);
+        if (currentUser == null) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
+        }
+        return currentUser;
     }
 
     /**
@@ -273,9 +277,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public boolean isAdmin(HttpServletRequest request) {
         // 仅管理员可查询
-        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
-        User user = (User) userObj;
-        return isAdmin(user);
+        User loginUser = getLoginUser(request);
+        String userRoleStr = request.getHeader("X-User-Role");
+        if (userRoleStr==null || userRoleStr.isEmpty()) {
+           throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
+        }
+        return isAdmin(loginUser);
     }
 
     @Override
