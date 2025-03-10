@@ -7,6 +7,7 @@ import com.hh.hhojbackendcommon.common.DeleteRequest;
 import com.hh.hhojbackendcommon.common.ErrorCode;
 import com.hh.hhojbackendcommon.common.ResultUtils;
 import com.hh.hhojbackendcommon.constant.UserConstant;
+import com.hh.hhojbackendcommon.utils.JwtUtils;
 import com.hh.hhojbackendmodel.dto.questionsubmit.QuestionSubmitQueryDTO;
 import com.hh.hhojbackendmodel.dto.user.*;
 import com.hh.hhojbackendmodel.entity.Question;
@@ -17,6 +18,7 @@ import com.hh.hhojbackenduserservice.config.MinioConfiguration;
 import com.hh.hhojbackenduserservice.exception.BusinessException;
 import com.hh.hhojbackenduserservice.exception.ThrowUtils;
 import com.hh.hhojbackenduserservice.service.UserService;
+import io.jsonwebtoken.Claims;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
@@ -179,8 +181,29 @@ public class UserController {
      */
     @GetMapping("/get/login")
     public BaseResponse<LoginUserVO> getLoginUser(HttpServletRequest request) {
-        User user = userService.getLoginUser(request);
-        return ResultUtils.success(userService.getLoginUserVO(user));
+        // 1. 从请求头获取 Token
+        String token = request.getHeader("Authorization");
+        if (StringUtils.isBlank(token) || !token.startsWith("Bearer ")) {
+            return ResultUtils.success(null); // 未携带 Token，返回未登录
+        }
+        token = token.substring(7);
+
+        try {
+            // 2. 解析 Token 获取用户 ID
+            Claims claims = JwtUtils.parseToken(token);
+            Long userId = Long.parseLong(claims.get("userId",String.class));
+
+            // 3. 查询用户信息
+            User user = userService.getById(userId);
+            if (user == null) {
+                return ResultUtils.success(null);
+            }
+            return ResultUtils.success(userService.getLoginUserVO(user));
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            // Token 解析失败，返回未登录
+            return ResultUtils.success(null);
+        }
     }
 
     /**

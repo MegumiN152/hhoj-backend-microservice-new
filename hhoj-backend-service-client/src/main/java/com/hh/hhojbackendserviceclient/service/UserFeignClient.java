@@ -49,7 +49,7 @@ public interface UserFeignClient {
      */
     default User getLoginUser(HttpServletRequest request) {
         String userIdStr = request.getHeader("X-User-Id");
-        if (userIdStr!=null && !userIdStr.isEmpty()) {
+        if (userIdStr==null && userIdStr.isEmpty()) {
             throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
         }
         long userId = Long.parseLong(userIdStr);

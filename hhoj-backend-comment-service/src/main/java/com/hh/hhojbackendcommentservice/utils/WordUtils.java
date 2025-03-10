@@ -18,24 +18,24 @@ public class WordUtils {
 
     static {
         WORD_TREE = new WordTree();
-        try {
-            File file = ResourceUtils.getFile("classpath:badwords.txt");
-            List<String> blackList = loadblackListFromFile(file);
+        try (InputStream inputStream = WordUtils.class.getClassLoader().getResourceAsStream("badwords.txt")) {
+            if (inputStream == null) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "违禁词文件未找到");
+            }
+            List<String> blackList = loadBlackListFromStream(inputStream);
             WORD_TREE.addWords(blackList);
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "违禁词库初始化失败");
         }
     }
 
-    private static List<String> loadblackListFromFile(File file) {
+    private static List<String> loadBlackListFromStream(InputStream inputStream) throws IOException {
         List<String> blackList = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 blackList.add(line.trim());
             }
-        } catch (IOException e) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "加载违禁词失败");
         }
         return blackList;
     }
@@ -52,10 +52,11 @@ public class WordUtils {
 
     /**
      * 提取字符串中的违禁词
-     * @param content
-     * @return
+     * @param content 需要提取违禁词的字符串
+     * @return 违禁词列表
      */
     public static List<String> extraForbbidWords(String content) {
+        // 调用WORD_TREE的matchAll方法，传入content参数，返回违禁词列表
         return WORD_TREE.matchAll(content);
     }
 }
