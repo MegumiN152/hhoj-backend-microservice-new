@@ -7,6 +7,7 @@ import com.hh.hhojbackendcommon.common.BaseResponse;
 import com.hh.hhojbackendcommon.common.DeleteRequest;
 import com.hh.hhojbackendcommon.common.ErrorCode;
 import com.hh.hhojbackendcommon.common.ResultUtils;
+import com.hh.hhojbackendcommon.constant.RedisConstant;
 import com.hh.hhojbackendcommon.constant.UserConstant;
 import com.hh.hhojbackendmodel.dto.question.*;
 import com.hh.hhojbackendmodel.dto.questionsubmit.QuestionSubmitAddRequest;
@@ -20,6 +21,7 @@ import com.hh.hhojbackendmodel.enums.QuestionsSubmitLanguageEnum;
 import com.hh.hhojbackendmodel.vo.*;
 import com.hh.hhojbackendquestionservice.exception.BusinessException;
 import com.hh.hhojbackendquestionservice.exception.ThrowUtils;
+import com.hh.hhojbackendquestionservice.job.CacheClearTask;
 import com.hh.hhojbackendquestionservice.manager.AiManager;
 import com.hh.hhojbackendquestionservice.manager.RedisLimiterManager;
 import com.hh.hhojbackendquestionservice.service.QuestionService;
@@ -34,6 +36,8 @@ import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+
+import static com.hh.hhojbackendcommon.constant.RedisConstant.CACHE_KEY_PREFIX;
 
 /**
  * 题目接口
@@ -57,9 +61,11 @@ public class QuestionController {
 
     @Resource
     private AiManager aiManager;
-    private static final String CACHE_KEY_PREFIX = "question:ai:";
     @Resource
     private RedisTemplate<String, Object> redisTemplate;
+
+    @Resource
+    private CacheClearTask cacheClearTask;
 
     // region 增删改查
 
@@ -345,6 +351,7 @@ public class QuestionController {
         redisLimiterManager.doRateLimit(loginUser.getId() + "_question_submit");
         long questionSubmitId = questionSubmitService.doQuestionSubmit(questionSubmitAddRequest, loginUser);
         //更新数据库然后删除缓存
+        log.info("删除缓存");
         clearUserCache(loginUser.getId());
         clearLeaderboardCache();
         clearHotQuestionsCache();
@@ -408,7 +415,7 @@ public class QuestionController {
         User loginUser = userFeignClient.getLoginUser(request);
         questionSubmitQueryRequest.setUserId(loginUser.getId());
         // 尝试从缓存获取
-        String cacheKey = "user:submits:" + loginUser.getId() + ":" + current + ":" + size;
+        String cacheKey = RedisConstant.USER_SUBMITS + loginUser.getId();
         Page<MyQuestionSubmitVO> cachedSubmits = (Page<MyQuestionSubmitVO>) redisTemplate.opsForValue().get(cacheKey);
         if (cachedSubmits != null) {
             return ResultUtils.success(cachedSubmits);
@@ -417,8 +424,11 @@ public class QuestionController {
         Page<QuestionSubmit> questionSubmitPage = questionSubmitService.page(new Page<>(current, size),
                 questionSubmitService.getQueryWrapper(questionSubmitQueryRequest));
         Page<MyQuestionSubmitVO> result = questionSubmitService.getMyQuestionSubmitVOPage(questionSubmitPage, loginUser);
-        // 设置缓存，过期时间1小时
-        redisTemplate.opsForValue().set(cacheKey, result, 1, TimeUnit.HOURS);
+        if (result.getRecords().isEmpty()) {
+            redisTemplate.opsForValue().set(cacheKey, result, 5, TimeUnit.MINUTES); // 空结果缓存5分钟
+        } else {
+            redisTemplate.opsForValue().set(cacheKey, result, 1, TimeUnit.HOURS); // 正常结果缓存1小时
+        }
         return ResultUtils.success(result);
     }
 
@@ -469,7 +479,7 @@ public class QuestionController {
     public BaseResponse<UserStatsVO> getUserStats(HttpServletRequest request) {
         User loginUser = userFeignClient.getLoginUser(request);
         //先从缓存获取
-        String cacheKey = "user:stats:" + loginUser.getId();
+        String cacheKey = RedisConstant.USER_STATS + loginUser.getId();
         UserStatsVO cachedUserStatsVO = (UserStatsVO) redisTemplate.opsForValue().get(cacheKey);
         if (cachedUserStatsVO!=null){
             return ResultUtils.success(cachedUserStatsVO);
@@ -484,7 +494,7 @@ public class QuestionController {
     public BaseResponse<List<UserLeaderboardVO>> getLeaderboard() {
         // 调用questionSubmitService的getLeaderboard方法获取排行榜
         // 尝试从缓存获取
-        String cacheKey = "leaderboard";
+        String cacheKey = RedisConstant.LEADERBOARD;
         List<UserLeaderboardVO> cachedLeaderboard = (List<UserLeaderboardVO>) redisTemplate.opsForValue().get(cacheKey);
         if (cachedLeaderboard != null) {
             return ResultUtils.success(cachedLeaderboard);
@@ -507,7 +517,7 @@ public class QuestionController {
         User loginUser = userFeignClient.getLoginUser(request);
         questionQueryRequest.setUserId(loginUser.getId());
         // 尝试从缓存获取
-        String cacheKey = "hot:questions:" + questionQueryRequest.getPageSize()+":"+questionQueryRequest.getCurrent();
+        String cacheKey = RedisConstant.HOT_QUESTIONS;
         Page<HotQuestionVO> cachedHotQuestionVO = (Page<HotQuestionVO>) redisTemplate.opsForValue().get(cacheKey);
         if (cachedHotQuestionVO != null) {
             return ResultUtils.success(cachedHotQuestionVO);
@@ -522,23 +532,29 @@ public class QuestionController {
      * 清除用户相关的缓存
      */
     private void clearUserCache(Long userId) {
-        // 清除用户统计缓存
-        redisTemplate.delete("user:stats:" + userId);
-        // 清除用户提交记录缓存
-        redisTemplate.delete("user:submits:" + userId + "*");
+        String[] keys = new String[]{
+                RedisConstant.USER_STATS + userId,
+                RedisConstant.USER_SUBMITS + userId
+        };
+        // 使用延迟双删策略，延迟500ms
+        cacheClearTask.delayedDoubleDelete(keys, 500);
     }
 
     /**
      * 清除排行榜缓存
      */
     private void clearLeaderboardCache() {
-        redisTemplate.delete("leaderboard");
+        String[] keys = new String[]{RedisConstant.LEADERBOARD};
+        // 使用延迟双删策略，延迟500ms
+        cacheClearTask.delayedDoubleDelete(keys, 500);
     }
 
     /**
      * 清除热门题目缓存
      */
     private void clearHotQuestionsCache() {
-        redisTemplate.delete("hot:questions:*");
+        String[] keys = new String[]{RedisConstant.HOT_QUESTIONS};
+        // 使用延迟双删策略，延迟500ms
+        cacheClearTask.delayedDoubleDelete(keys, 500);
     }
 }
