@@ -1,6 +1,7 @@
 package com.hh.hhojbackendmodel.vo;
 
 import cn.hutool.json.JSONUtil;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.hh.hhojbackendmodel.codeSandBox.JudgeInfo;
 import com.hh.hhojbackendmodel.entity.QuestionSubmit;
 import lombok.Data;
@@ -8,7 +9,7 @@ import org.springframework.beans.BeanUtils;
 
 import java.io.Serializable;
 import java.util.Date;
-
+import com.fasterxml.jackson.annotation.JsonFormat;
 /**
  * 题目封装类
  *
@@ -54,11 +55,13 @@ public class QuestionSubmitVO implements Serializable {
     /**
      * 创建时间
      */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date createTime;
 
     /**
      * 更新时间
      */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date updateTime;
 
     /**
