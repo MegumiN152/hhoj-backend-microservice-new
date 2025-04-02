@@ -82,7 +82,7 @@ public class QuestionController {
             question.setTags(JSONUtil.toJsonStr(tags));
         }
         Integer difficulty = questionAddRequest.getDifficulty();
-        if (QuestionDifficultyEnum.getEnumByValue(difficulty)!=null){
+        if (QuestionDifficultyEnum.getEnumByValue(difficulty) != null) {
             question.setDifficulty(difficulty);
         }
         List<JudgeCase> judgeCase = questionAddRequest.getJudgeCase();
@@ -148,7 +148,7 @@ public class QuestionController {
             question.setTags(JSONUtil.toJsonStr(tags));
         }
         Integer difficulty = questionUpdateRequest.getDifficulty();
-        if (QuestionDifficultyEnum.getEnumByValue(difficulty)!=null){
+        if (QuestionDifficultyEnum.getEnumByValue(difficulty) != null) {
             question.setDifficulty(difficulty);
         }
         List<JudgeCase> judgeCase = questionUpdateRequest.getJudgeCase();
@@ -286,7 +286,7 @@ public class QuestionController {
             question.setTags(JSONUtil.toJsonStr(tags));
         }
         Integer difficulty = questionEditRequest.getDifficulty();
-        if (QuestionDifficultyEnum.getEnumByValue(difficulty)!=null){
+        if (QuestionDifficultyEnum.getEnumByValue(difficulty) != null) {
             question.setDifficulty(difficulty);
         }
         List<JudgeCase> judgeCase = questionEditRequest.getJudgeCase();
@@ -344,6 +344,10 @@ public class QuestionController {
         //限流判断，每个用户加题目一个限流器 1分钟5次
         redisLimiterManager.doRateLimit(loginUser.getId() + "_question_submit");
         long questionSubmitId = questionSubmitService.doQuestionSubmit(questionSubmitAddRequest, loginUser);
+        //更新数据库然后删除缓存
+        clearUserCache(loginUser.getId());
+        clearLeaderboardCache();
+        clearHotQuestionsCache();
         return ResultUtils.success(questionSubmitId);
     }
 
@@ -390,6 +394,7 @@ public class QuestionController {
                 questionSubmitService.getQueryWrapper(questionSubmitQueryRequest));
         return ResultUtils.success(questionSubmitService.getQuestionSubmitVOPage(questionSubmitPage, loginUser));
     }
+
     /**
      * 分页获取题目提交列表（用户自己）
      *
@@ -402,10 +407,21 @@ public class QuestionController {
         long size = questionSubmitQueryRequest.getPageSize();
         User loginUser = userFeignClient.getLoginUser(request);
         questionSubmitQueryRequest.setUserId(loginUser.getId());
+        // 尝试从缓存获取
+        String cacheKey = "user:submits:" + loginUser.getId() + ":" + current + ":" + size;
+        Page<MyQuestionSubmitVO> cachedSubmits = (Page<MyQuestionSubmitVO>) redisTemplate.opsForValue().get(cacheKey);
+        if (cachedSubmits != null) {
+            return ResultUtils.success(cachedSubmits);
+        }
+        // 缓存未命中，重新计算
         Page<QuestionSubmit> questionSubmitPage = questionSubmitService.page(new Page<>(current, size),
                 questionSubmitService.getQueryWrapper(questionSubmitQueryRequest));
-        return ResultUtils.success(questionSubmitService.getMyQuestionSubmitVOPage(questionSubmitPage, loginUser));
+        Page<MyQuestionSubmitVO> result = questionSubmitService.getMyQuestionSubmitVOPage(questionSubmitPage, loginUser);
+        // 设置缓存，过期时间1小时
+        redisTemplate.opsForValue().set(cacheKey, result, 1, TimeUnit.HOURS);
+        return ResultUtils.success(result);
     }
+
     /**
      * ai答题
      */
@@ -425,7 +441,7 @@ public class QuestionController {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
         }
         //定义缓存键
-        String cacheKey = CACHE_KEY_PREFIX + question.getId()+questionSubmitQueryDTO.getLanguage();
+        String cacheKey = CACHE_KEY_PREFIX + question.getId() + questionSubmitQueryDTO.getLanguage();
         // 尝试从Redis中获取缓存
         AiQuestionVO cachedAiQuestionVO = (AiQuestionVO) redisTemplate.opsForValue().get(cacheKey);
         if (cachedAiQuestionVO != null) {
@@ -436,7 +452,7 @@ public class QuestionController {
             AiQuestionVO aiQuestionVO = aiManager.getGenResultByDeepSeek(question.getTitle(), question.getContent(), questionSubmitQueryDTO.getLanguage(), question.getId());
 
             // 将结果存入Redis并设置过期时间为一天
-            redisTemplate.opsForValue().set(cacheKey, aiQuestionVO, 1, TimeUnit.HOURS);
+            redisTemplate.opsForValue().set(cacheKey, aiQuestionVO, 24, TimeUnit.HOURS);
 
             return ResultUtils.success(aiQuestionVO);
         }
@@ -445,32 +461,84 @@ public class QuestionController {
 
     /**
      * 统计个人数据
+     *
      * @param request
      * @return
      */
     @GetMapping("/status")
     public BaseResponse<UserStatsVO> getUserStats(HttpServletRequest request) {
         User loginUser = userFeignClient.getLoginUser(request);
-         UserStatsVO userStatsVO=  questionSubmitService.getUserStats(loginUser.getId());
-         return ResultUtils.success(userStatsVO);
+        //先从缓存获取
+        String cacheKey = "user:stats:" + loginUser.getId();
+        UserStatsVO cachedUserStatsVO = (UserStatsVO) redisTemplate.opsForValue().get(cacheKey);
+        if (cachedUserStatsVO!=null){
+            return ResultUtils.success(cachedUserStatsVO);
+        }
+        UserStatsVO userStatsVO = questionSubmitService.getUserStats(loginUser.getId());
+        //设置缓存，过期时间1小时
+        redisTemplate.opsForValue().set(cacheKey, userStatsVO, 1, TimeUnit.HOURS);
+        return ResultUtils.success(userStatsVO);
     }
+
     @GetMapping("/leaderboard")
     public BaseResponse<List<UserLeaderboardVO>> getLeaderboard() {
-      List<UserLeaderboardVO> leaderboardVOS=  questionSubmitService.getLeaderboard();
-      return ResultUtils.success(leaderboardVOS);
+        // 调用questionSubmitService的getLeaderboard方法获取排行榜
+        // 尝试从缓存获取
+        String cacheKey = "leaderboard";
+        List<UserLeaderboardVO> cachedLeaderboard = (List<UserLeaderboardVO>) redisTemplate.opsForValue().get(cacheKey);
+        if (cachedLeaderboard != null) {
+            return ResultUtils.success(cachedLeaderboard);
+        }
+        List<UserLeaderboardVO> leaderboardVOS = questionSubmitService.getLeaderboard();
+        // 设置缓存，过期时间1小时
+        redisTemplate.opsForValue().set(cacheKey, leaderboardVOS, 1, TimeUnit.HOURS);
+        return ResultUtils.success(leaderboardVOS);
     }
 
     /**
      * 返回近日热题列表
+     *
      * @param questionQueryRequest
      * @param request
      * @return
      */
     @PostMapping("/hot/list")
-    public BaseResponse<Page<HotQuestionVO>> getHotQuestionSubmitList(@RequestBody QuestionQueryRequest questionQueryRequest,HttpServletRequest request) {
+    public BaseResponse<Page<HotQuestionVO>> getHotQuestionSubmitList(@RequestBody QuestionQueryRequest questionQueryRequest, HttpServletRequest request) {
         User loginUser = userFeignClient.getLoginUser(request);
         questionQueryRequest.setUserId(loginUser.getId());
-      Page<HotQuestionVO> questionVOPage=  questionService.listHotQuestions(questionQueryRequest);
-      return ResultUtils.success(questionVOPage);
+        // 尝试从缓存获取
+        String cacheKey = "hot:questions:" + questionQueryRequest.getPageSize()+":"+questionQueryRequest.getCurrent();
+        Page<HotQuestionVO> cachedHotQuestionVO = (Page<HotQuestionVO>) redisTemplate.opsForValue().get(cacheKey);
+        if (cachedHotQuestionVO != null) {
+            return ResultUtils.success(cachedHotQuestionVO);
+        }
+        Page<HotQuestionVO> questionVOPage = questionService.listHotQuestions(questionQueryRequest);
+        // 设置缓存，过期时间1小时
+        redisTemplate.opsForValue().set(cacheKey, questionVOPage, 1, TimeUnit.HOURS);
+        return ResultUtils.success(questionVOPage);
+    }
+
+    /**
+     * 清除用户相关的缓存
+     */
+    private void clearUserCache(Long userId) {
+        // 清除用户统计缓存
+        redisTemplate.delete("user:stats:" + userId);
+        // 清除用户提交记录缓存
+        redisTemplate.delete("user:submits:" + userId + "*");
+    }
+
+    /**
+     * 清除排行榜缓存
+     */
+    private void clearLeaderboardCache() {
+        redisTemplate.delete("leaderboard");
+    }
+
+    /**
+     * 清除热门题目缓存
+     */
+    private void clearHotQuestionsCache() {
+        redisTemplate.delete("hot:questions:*");
     }
 }
