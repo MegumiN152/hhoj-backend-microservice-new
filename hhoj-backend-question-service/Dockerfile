@@ -1,6 +1,12 @@
 # 基础镜像
 FROM openjdk:8-alpine
-  
+# 设置时区为东八区
+ENV TZ=Asia/Shanghai
+
+# 关键步骤：安装 tzdata 包并配置时区
+RUN apk add --no-cache tzdata \
+    && cp /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo $TZ > /etc/timezone
 # 指定工作目录
 WORKDIR /app
   
