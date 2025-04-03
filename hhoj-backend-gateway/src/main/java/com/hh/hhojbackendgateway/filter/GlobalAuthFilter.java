@@ -27,10 +27,38 @@ import java.util.Map;
 @Component
 public class GlobalAuthFilter implements GlobalFilter {
     private AntPathMatcher authPathMatcher = new AntPathMatcher();
-
+    // 不需要验证token的路径
+    private static final String[] WHITE_LIST = {
+            "/api/user/login",
+            "/api/user/get/login",
+            "/api/user/register",
+            "/api/user/logout",
+            "/api/doc.html",
+            "/api/v3/api-docs",
+            "/api/v2/api-docs",
+            "/api/swagger-resources",
+            "/api/swagger-ui.html",
+            "/api/webjars/**",
+            "/api/comment/v2/**",
+            "/api/question/v2/**",
+            "/api/judge/v2/**",
+            "/api/user/v2/**",
+    };
     @Resource
     private RedisTemplate<String, String> redisTemplate;
-
+    /**
+     * 判断是否为白名单路径
+     * @param path 请求路径
+     * @return 是否在白名单中
+     */
+    private boolean isWhiteListPath(String path) {
+        for (String whitePath : WHITE_LIST) {
+            if (authPathMatcher.match(whitePath, path)) {
+                return true;
+            }
+        }
+        return false;
+    }
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
@@ -40,7 +68,7 @@ public class GlobalAuthFilter implements GlobalFilter {
             return writeError(exchange.getResponse(), "无权限");
         }
         //2. 公开接口（如登录注册）放行
-        if (path.contains("/api/user/login") || path.contains("/api/user/register") || path.startsWith("/api/user/get/login")) {
+        if (isWhiteListPath(path)) {
             return chain.filter(exchange);
         }
         //3.验证 jwt

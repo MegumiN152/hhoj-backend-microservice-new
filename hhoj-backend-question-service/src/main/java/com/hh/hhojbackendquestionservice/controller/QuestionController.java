@@ -28,6 +28,7 @@ import com.hh.hhojbackendquestionservice.service.QuestionService;
 import com.hh.hhojbackendquestionservice.service.QuestionSubmitService;
 import com.hh.hhojbackendserviceclient.service.UserFeignClient;
 import lombok.extern.slf4j.Slf4j;
+import org.checkerframework.checker.units.qual.A;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
@@ -556,5 +557,36 @@ public class QuestionController {
         String[] keys = new String[]{RedisConstant.HOT_QUESTIONS};
         // 使用延迟双删策略，延迟500ms
         cacheClearTask.delayedDoubleDelete(keys, 500);
+    }
+    /**
+     * AI 生成编程题目
+     *
+     * @param questionGenerateRequest 题目生成请求
+     * @param request HTTP请求
+     * @return 生成的题目信息
+     */
+    @PostMapping("/generate")
+    public BaseResponse<AiGeneratedQuestionVO> generateQuestion(@RequestBody QuestionGenerateRequest questionGenerateRequest, HttpServletRequest request) {
+        // 参数校验
+        if (questionGenerateRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+
+        String title = questionGenerateRequest.getTitle();
+        List<String> tags = questionGenerateRequest.getTags();
+
+        // 标题和标签至少有一个不为空
+        if ((title == null || title.isEmpty()) && (tags == null || tags.isEmpty())) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "题目标题和标签至少提供一项");
+        }
+
+        // 登录且是管理员才能使用AI生成功能
+        User loginUser = userFeignClient.getLoginUser(request);
+        ThrowUtils.throwIf(loginUser == null && !UserConstant.ADMIN_ROLE.equals(loginUser.getUserRole()), ErrorCode.NO_AUTH_ERROR);
+
+        // 调用AI生成题目
+        AiGeneratedQuestionVO generatedQuestion = aiManager.generateProgrammingQuestion(title, tags);
+        generatedQuestion.setSampleCode("```java "+generatedQuestion.getSampleCode());
+        return ResultUtils.success(generatedQuestion);
     }
 }

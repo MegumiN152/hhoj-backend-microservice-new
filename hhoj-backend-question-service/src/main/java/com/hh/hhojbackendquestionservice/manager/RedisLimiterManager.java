@@ -36,4 +36,18 @@ public class RedisLimiterManager {
             throw new BusinessException(ErrorCode.TOO_MANY_REQUEST);
         }
     }
+    /**
+     * 限流操作
+     */
+    public void doRateLimit_genQuestion(String key) {
+        //创建一个限流器，每五秒钟限制两次
+        RRateLimiter rRateLimiter = redissonClient.getRateLimiter(key);
+        rRateLimiter.trySetRate(RateType.OVERALL, 1, 1, RateIntervalUnit.MINUTES);
+
+        //每当一个操作来了后，请求一个令牌
+        boolean b = rRateLimiter.tryAcquire(1);
+        if (!b) {
+            throw new BusinessException(ErrorCode.TOO_MANY_REQUEST);
+        }
+    }
 }

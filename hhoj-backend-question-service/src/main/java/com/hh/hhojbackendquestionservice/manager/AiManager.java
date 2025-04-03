@@ -6,7 +6,9 @@ package com.hh.hhojbackendquestionservice.manager;
  **/
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.json.JSONUtil;
 import com.hh.hhojbackendcommon.common.ErrorCode;
+import com.hh.hhojbackendmodel.vo.AiGeneratedQuestionVO;
 import com.hh.hhojbackendmodel.vo.AiQuestionVO;
 import com.hh.hhojbackendserviceclient.exception.BusinessException;
 import com.volcengine.ark.runtime.model.completion.chat.ChatCompletionChoice;
@@ -44,6 +46,29 @@ public class AiManager {
 
     @Resource
     private SparkClient sparkClient;
+
+    /**
+     * Prompt for generating programming questions
+     */
+    public static final String QUESTION_GENERATION_PROMPT = "你是一个专业的编程题目生成专家，擅长设计算法和数据结构相关的编程题目。我需要你根据给定的标题和标签生成一个完整的编程题目。\n\n" +
+            "请你严格按照以下JSON格式输出（请不要输出其他任何内容，只需要输出一个有效的JSON对象）：\n" +
+            "{\n" +
+            "  \"title\": \"完整的题目标题\",\n" +
+            "  \"content\": \"详细的题目描述，包括问题背景、输入输出格式、约束条件等\",\n" +
+            "  \"difficulty\": \"难度等级，只能是0、1或2，分别代表简单、中等和困难\",\n" +
+            "  \"sampleCode\": \"完整的Java示例代码，必须包含public class Main和public static void main(String[] args)方法，且能正确解决问题\",\n" +
+            "  \"judgeCase\": [\n" +
+            "    {\"input\": \"测试用例1的输入\", \"output\": \"测试用例1的期望输出\"},\n" +
+            "    {\"input\": \"测试用例2的输入\", \"output\": \"测试用例2的期望输出\"},\n" +
+            "    {\"input\": \"测试用例3的输入\", \"output\": \"测试用例3的期望输出\"}\n" +
+            "  ]\n" +
+            "}\n\n" +
+            "注意事项：\n" +
+            "1. 题目内容要清晰、完整，包含必要的解释和示例\n" +
+            "2. 示例代码必须是完整的、可运行的Java代码，必须通过命令行参数（args）获取输入\n" +
+            "3. 测试用例应该覆盖基本情况、边界情况和特殊情况\n" +
+            "4. 难度评级要与实际复杂度相符：0-简单（基本算法，时间复杂度O(n)以内），1-中等（需要一定算法知识，可能是O(nlogn)复杂度），2-困难（需要复杂算法或数据结构）\n" +
+            "5. 所有题目请确保有明确的答案且测试用例可以验证答案的正确性\n";
 
     public static final String PRECONDITION = "现在你是一位精通OJ竞赛题目的算法专家，接下来我会按照以下固定格式给你发送内容：\n" +
             "题目标题：\n" +
@@ -187,7 +212,29 @@ public class AiManager {
         }
         return new AiQuestionVO(genResult, genCode, questionId);
     }
+    /**
+     * 生成编程题目
+     *
+     * @param title 题目标题
+     * @param tags 题目标签
+     * @return 生成的题目信息
+     */
+    public AiGeneratedQuestionVO generateProgrammingQuestion(String title, List<String> tags) {
+        StringBuilder promptBuilder = new StringBuilder(QUESTION_GENERATION_PROMPT);
+        promptBuilder.append("\n题目标题: ").append(title);
+        promptBuilder.append("\n题目标签: ").append(String.join(", ", tags));
 
+        String response = doChat(promptBuilder.toString());
+        log.info("AI 生成题目的原始响应: {}", response);
+
+        try {
+            // 尝试解析JSON
+            return JSONUtil.toBean(response, AiGeneratedQuestionVO.class);
+        } catch (Exception e) {
+            log.error("解析AI生成的题目失败", e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI生成题目格式解析失败，请重试");
+        }
+    }
 
 //    public Flux<String> getGenResultStream(final String title, final String content,
 //                                           final String language) {

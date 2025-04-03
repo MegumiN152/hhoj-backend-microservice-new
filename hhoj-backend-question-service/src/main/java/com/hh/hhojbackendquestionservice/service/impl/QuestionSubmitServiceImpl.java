@@ -133,7 +133,7 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
 
 
     @Override
-    public QuestionSubmitVO getQuestionSubmitVO(QuestionSubmit questionSubmit, User loginUser) {
+    public QuestionSubmitVO getQuestionSubmitVO(QuestionSubmit questionSubmit, User loginUser,User user,Question question) {
         QuestionSubmitVO questionSubmitVO = QuestionSubmitVO.objToVo(questionSubmit);
         //只有本人和管理员才能看见提交的代码
         Long userId1 = loginUser.getId();
@@ -143,14 +143,12 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
             questionSubmitVO.setCode(null);
         }
        if (userId!=null&&userId > 0){
-           User user = userFeignClient.getById(userId);
            UserVO userVO = userFeignClient.getUserVO(user);
            questionSubmitVO.setUserVO(userVO);
        }
         //2. 关联查询题目信息
         Long questionId = questionSubmit.getQuestionId();
        if (questionId!=null&&questionId > 0){
-           Question question = questionService.getById(questionId);
            QuestionVO questionVO = questionService.getQuestionVO(question, loginUser);
            questionSubmitVO.setQuestionVO(questionVO);
        }
@@ -174,21 +172,17 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
                 .collect(Collectors.groupingBy(Question::getId));
         // 填充信息
         List<QuestionSubmitVO> questionSubmitVOList = questionSubmitList.stream().map(questionSubmit -> {
-            QuestionSubmitVO questionSubmitVO = getQuestionSubmitVO(questionSubmit,loginUser);
             Long userId = questionSubmit.getUserId();
             User user = null;
             if (userIdUserListMap.containsKey(userId)) {
                 user = userIdUserListMap.get(userId).get(0);
             }
-            questionSubmitVO.setUserVO(userFeignClient.getUserVO(user));
-
             Long questionId = questionSubmit.getQuestionId();
             Question question = null;
             if (questionIdQuestionListMap.containsKey(questionId)) {
                 question = questionIdQuestionListMap.get(questionId).get(0);
             }
-            questionSubmitVO.setQuestionVO(questionService.getQuestionVO(question, loginUser));
-            return questionSubmitVO;
+            return getQuestionSubmitVO(questionSubmit,loginUser,user,question);
         }).collect(Collectors.toList());
         questionSubmitVOPage.setRecords(questionSubmitVOList);
         return questionSubmitVOPage;

@@ -37,6 +37,10 @@ public class QuestionAddRequest implements Serializable {
      * 题目答案
      */
     private String answer;
+    /**
+     * 类型
+     */
+    private Integer type;
 
     /**
      * 判题用例（json 数组）

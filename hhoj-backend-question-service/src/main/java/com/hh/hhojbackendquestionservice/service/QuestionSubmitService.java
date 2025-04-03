@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.hh.hhojbackendmodel.dto.questionsubmit.QuestionSubmitAddRequest;
 import com.hh.hhojbackendmodel.dto.questionsubmit.QuestionSubmitQueryRequest;
+import com.hh.hhojbackendmodel.entity.Question;
 import com.hh.hhojbackendmodel.entity.QuestionSubmit;
 import com.hh.hhojbackendmodel.entity.User;
 import com.hh.hhojbackendmodel.vo.MyQuestionSubmitVO;
@@ -40,7 +41,7 @@ public interface QuestionSubmitService extends IService<QuestionSubmit> {
      * @param loginUser
      * @return
      */
-    QuestionSubmitVO getQuestionSubmitVO(QuestionSubmit questionSubmit, User loginUser);
+    QuestionSubmitVO getQuestionSubmitVO(QuestionSubmit questionSubmit, User loginUser, User user, Question question);
 
     /**
      * 分页获取题目封装

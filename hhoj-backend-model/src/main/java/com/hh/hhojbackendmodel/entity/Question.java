@@ -80,6 +80,11 @@ public class Question implements Serializable {
     private Integer difficulty;
 
     /**
+     * 题目类型 0普通（默认） 1ai生成
+     */
+    private Integer type;
+
+    /**
      * 创建时间
      */
     private Date createTime;
