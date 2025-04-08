@@ -125,14 +125,7 @@ public class QuestionController {
         }
         User user = userFeignClient.getLoginUser(request);
         long id = deleteRequest.getId();
-        // 判断是否存在
-        Question oldQuestion = questionService.getById(id);
-        ThrowUtils.throwIf(oldQuestion == null, ErrorCode.NOT_FOUND_ERROR);
-        // 仅本人或管理员可删除
-        if (!oldQuestion.getUserId().equals(user.getId()) && !userFeignClient.isAdmin(user)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-        }
-        boolean b = questionService.removeById(id);
+        boolean b = questionService.deleteQuestionAndSubmit(id, user);
         return ResultUtils.success(b);
     }
 

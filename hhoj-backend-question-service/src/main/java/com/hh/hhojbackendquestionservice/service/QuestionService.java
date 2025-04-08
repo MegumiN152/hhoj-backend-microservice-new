@@ -8,6 +8,7 @@ import com.hh.hhojbackendmodel.entity.Question;
 import com.hh.hhojbackendmodel.entity.User;
 import com.hh.hhojbackendmodel.vo.HotQuestionVO;
 import com.hh.hhojbackendmodel.vo.QuestionVO;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -17,6 +18,10 @@ import javax.servlet.http.HttpServletRequest;
 * @createDate 2024-12-10 21:28:35
 */
 public interface QuestionService extends IService<Question> {
+
+    @Transactional
+    boolean deleteQuestionAndSubmit(Long questionId, User user);
+
     /**
      * 校验
      *

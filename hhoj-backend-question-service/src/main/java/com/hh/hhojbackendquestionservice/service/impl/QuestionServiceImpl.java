@@ -11,6 +11,7 @@ import com.hh.hhojbackendcommon.constant.CommonConstant;
 import com.hh.hhojbackendcommon.utils.SqlUtils;
 import com.hh.hhojbackendmodel.dto.question.QuestionQueryRequest;
 import com.hh.hhojbackendmodel.entity.Question;
+import com.hh.hhojbackendmodel.entity.QuestionSubmit;
 import com.hh.hhojbackendmodel.entity.User;
 import com.hh.hhojbackendmodel.vo.HotQuestionVO;
 import com.hh.hhojbackendmodel.vo.QuestionVO;
@@ -19,10 +20,13 @@ import com.hh.hhojbackendquestionservice.exception.BusinessException;
 import com.hh.hhojbackendquestionservice.exception.ThrowUtils;
 import com.hh.hhojbackendquestionservice.mapper.QuestionMapper;
 import com.hh.hhojbackendquestionservice.service.QuestionService;
+import com.hh.hhojbackendquestionservice.service.QuestionSubmitService;
 import com.hh.hhojbackendserviceclient.service.UserFeignClient;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
@@ -43,6 +47,28 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question>
     @Resource
     private UserFeignClient userFeignClient;
 
+    @Resource
+    @Lazy
+    private QuestionSubmitService questionSubmitService;
+
+
+
+
+    @Override
+    @Transactional
+    public boolean deleteQuestionAndSubmit(Long questionId, User user){
+        // 判断是否存在
+        Question oldQuestion = this.getById(questionId);
+        ThrowUtils.throwIf(oldQuestion == null, ErrorCode.NOT_FOUND_ERROR);
+        // 仅本人或管理员可删除
+        if (!oldQuestion.getUserId().equals(user.getId()) && !userFeignClient.isAdmin(user)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
+        }
+        boolean a = this.removeById(questionId);
+        QueryWrapper<QuestionSubmit> questionSubmitQueryWrapper = new QueryWrapper<QuestionSubmit>().eq("questionId", questionId);
+        boolean b = questionSubmitService.remove(questionSubmitQueryWrapper);
+        return a && b;
+    }
 
     @Override
     public void validQuestion(Question question, boolean add) {
