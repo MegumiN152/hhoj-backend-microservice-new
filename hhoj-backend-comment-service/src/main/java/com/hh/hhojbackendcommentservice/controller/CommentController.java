@@ -1,5 +1,10 @@
 package com.hh.hhojbackendcommentservice.controller;
 
+import cn.hutool.extra.mail.MailUtil;
+import com.alibaba.csp.sentinel.Entry;
+import com.alibaba.csp.sentinel.EntryType;
+import com.alibaba.csp.sentinel.SphU;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.hh.hhojbackendcommentservice.exception.BusinessException;
 import com.hh.hhojbackendcommentservice.manager.RedisLimiterManager;
@@ -42,20 +47,24 @@ public class CommentController {
     @PostMapping("/add")
     @AuthCheck(mustRole = UserConstant.DEFAULT_ROLE)
     public BaseResponse<Long> addComment(@RequestBody CommentAddRequest commentAddRequest, HttpServletRequest request) {
-        if (commentAddRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空");
-        }
-        User loginUser = userFeignClient.getLoginUser(request);
-        if(!WordUtils.containsBadWords(commentAddRequest.getContent())){
-            throw new BusinessException(ErrorCode.PARAMS_ERROR,"包含敏感词汇");
-        }
-        if (!(loginUser.getId().equals(commentAddRequest.getUserId()))) {
-            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
-        }
-        //添加评论限流
-        redisLimiterManager.doRateLimit("addComment"+loginUser.getId());
-        Long commentId = commentService.addComment(commentAddRequest);
-        return ResultUtils.success(commentId);
+        String userId = request.getHeader("X-user-Id");
+        try(Entry entry = SphU.entry("addComment", EntryType.IN, 1, userId)){
+           if (commentAddRequest == null) {
+               throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空");
+           }
+           User loginUser = userFeignClient.getLoginUser(request);
+           if(!WordUtils.containsBadWords(commentAddRequest.getContent())){
+               throw new BusinessException(ErrorCode.PARAMS_ERROR,"包含敏感词汇");
+           }
+           if (!(loginUser.getId().equals(commentAddRequest.getUserId()))) {
+               throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
+           }
+           Long commentId = commentService.addComment(commentAddRequest);
+           return ResultUtils.success(commentId);
+       }catch (BlockException e){
+            MailUtil.send("3105755134@qq.com", "评论限流告警", "->傻逼用户"+userId+"频繁发评论",false);
+            throw new BusinessException(ErrorCode.TOO_MANY_REQUEST);
+       }
     }
 
     @PostMapping("/delete")

@@ -1,6 +1,11 @@
 package com.hh.hhojbackendquestionservice.controller;
 
+import cn.hutool.extra.mail.MailUtil;
 import cn.hutool.json.JSONUtil;
+import com.alibaba.csp.sentinel.Entry;
+import com.alibaba.csp.sentinel.EntryType;
+import com.alibaba.csp.sentinel.SphU;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.hh.hhojbackendcommon.annotation.AuthCheck;
 import com.hh.hhojbackendcommon.common.BaseResponse;
@@ -336,20 +341,24 @@ public class QuestionController {
     @PostMapping("/question_submit/do")
     public BaseResponse<Long> doQuestionSubmit(@RequestBody QuestionSubmitAddRequest questionSubmitAddRequest,
                                                HttpServletRequest request) {
-        if (questionSubmitAddRequest == null || questionSubmitAddRequest.getQuestionId() <= 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        String userId = request.getHeader("X-user-Id");
+        try(Entry entry = SphU.entry("questionSubmit", EntryType.IN, 1, userId)) {
+            if (questionSubmitAddRequest == null || questionSubmitAddRequest.getQuestionId() <= 0) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR);
+            }
+            // 登录才能提交代码
+            final User loginUser = userFeignClient.getLoginUser(request);
+            long questionSubmitId = questionSubmitService.doQuestionSubmit(questionSubmitAddRequest, loginUser);
+            //更新数据库然后删除缓存
+            log.info("删除缓存");
+            clearUserCache(loginUser.getId());
+            clearLeaderboardCache();
+            clearHotQuestionsCache();
+            return ResultUtils.success(questionSubmitId);
+        }catch (BlockException e){
+            MailUtil.send("3105755134@qq.com", "提交代码限流告警", "->傻逼用户"+userId+"频繁提交代码",false);
+            throw new BusinessException(ErrorCode.TOO_MANY_REQUEST);
         }
-        // 登录才能提交代码
-        final User loginUser = userFeignClient.getLoginUser(request);
-        //限流判断，每个用户加题目一个限流器 1分钟5次
-        redisLimiterManager.doRateLimit(loginUser.getId() + "_question_submit");
-        long questionSubmitId = questionSubmitService.doQuestionSubmit(questionSubmitAddRequest, loginUser);
-        //更新数据库然后删除缓存
-        log.info("删除缓存");
-        clearUserCache(loginUser.getId());
-        clearLeaderboardCache();
-        clearHotQuestionsCache();
-        return ResultUtils.success(questionSubmitId);
     }
 
 //    @GetMapping(value = "/ai-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
