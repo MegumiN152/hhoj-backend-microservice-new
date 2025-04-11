@@ -9,6 +9,7 @@ import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferFactory;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
@@ -19,6 +20,7 @@ import reactor.core.publisher.Mono;
 import javax.annotation.Resource;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * @author 黄昊
@@ -45,7 +47,7 @@ public class GlobalAuthFilter implements GlobalFilter {
             "/api/user/v2/**",
     };
     @Resource
-    private RedisTemplate<String, String> redisTemplate;
+    private StringRedisTemplate stringRedisTemplate;
     /**
      * 判断是否为白名单路径
      * @param path 请求路径
@@ -76,13 +78,15 @@ public class GlobalAuthFilter implements GlobalFilter {
         if (StringUtils.isBlank(token) || !token.startsWith("Bearer ")) {
             return writeError(exchange.getResponse(), "未提供token");
         }
-        // 新增：检查 Token 是否在黑名单中
-        if (Boolean.TRUE.equals(redisTemplate.hasKey("jwt:blacklist:" + token))) {
-            return writeError(exchange.getResponse(), "Token 已失效");
-        }
         try {
             token = token.substring(7);
+            Set<String> keys = stringRedisTemplate.keys("jwt:blacklist:*");
+            System.out.println(keys);
             // 解析 JWT 并验证
+            // 新增：检查 Token 是否在黑名单中
+            if (stringRedisTemplate.hasKey("jwt:blacklist:" + token)) {
+                return writeError(exchange.getResponse(), "Token 已失效");
+            }
             Claims claims = JwtUtils.parseToken(token);
             Long userId = Long.parseLong(claims.get("userId", String.class));
             String userRole = claims.get("userRole", String.class);

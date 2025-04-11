@@ -28,6 +28,7 @@ import com.hh.hhojbackendquestionservice.exception.BusinessException;
 import com.hh.hhojbackendquestionservice.exception.ThrowUtils;
 import com.hh.hhojbackendquestionservice.job.CacheClearTask;
 import com.hh.hhojbackendquestionservice.manager.AiManager;
+import com.hh.hhojbackendquestionservice.manager.CountManager;
 import com.hh.hhojbackendquestionservice.manager.RedisLimiterManager;
 import com.hh.hhojbackendquestionservice.service.QuestionService;
 import com.hh.hhojbackendquestionservice.service.QuestionSubmitService;
@@ -72,6 +73,9 @@ public class QuestionController {
 
     @Resource
     private CacheClearTask cacheClearTask;
+
+    @Resource
+    private CountManager countManager;
 
     // region 增删改查
 
@@ -185,11 +189,13 @@ public class QuestionController {
         if (id <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
+        User loginUser = userFeignClient.getLoginUser(request);
+        //检测和处置爬虫
+        crawlerDetect(loginUser.getId(),request);
         Question question = questionService.getById(id);
         if (question == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
         }
-        User loginUser = userFeignClient.getLoginUser(request);
         return ResultUtils.success(questionService.getQuestionVO(question, loginUser));
     }
 
@@ -590,5 +596,38 @@ public class QuestionController {
         AiGeneratedQuestionVO generatedQuestion = aiManager.generateProgrammingQuestion(title, tags);
         generatedQuestion.setSampleCode("```java "+generatedQuestion.getSampleCode());
         return ResultUtils.success(generatedQuestion);
+    }
+    /**
+     * 检测爬虫
+     *
+     * @param loginUserId
+     */
+    private void crawlerDetect(long loginUserId,HttpServletRequest request) {
+        // 调用多少次时告警
+        final int WARN_COUNT = 10;
+        // 超过多少次封号
+        final int BAN_COUNT = 20;
+        // 拼接访问 key
+        String key = String.format("user:access:%s", loginUserId);
+        // 一分钟内访问次数，180 秒过期
+        long count = countManager.incrAndGetCounter(key, 1, TimeUnit.MINUTES, 180);
+        // 是否封号
+        if (count > BAN_COUNT) {
+            // 踢下线
+            String token = request.getHeader("Authorization");
+           userFeignClient.logout(token);
+            // 封号
+            User updateUser = new User();
+            updateUser.setId(loginUserId);
+            updateUser.setUserRole("ban");
+            userFeignClient.updateById(updateUser);
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "访问太频繁，已被封号");
+        }
+        // 是否告警
+        if (count == WARN_COUNT) {
+            // 可以改为向管理员发送邮件通知
+            MailUtil.send("3105755134@qq.com", "爬虫告警", "->傻逼用户"+loginUserId+"疑似爬虫",false);
+            throw new BusinessException(110, "警告访问太频繁");
+        }
     }
 }

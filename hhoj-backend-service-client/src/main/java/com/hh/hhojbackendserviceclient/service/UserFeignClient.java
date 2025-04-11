@@ -7,8 +7,7 @@ import com.hh.hhojbackendmodel.vo.UserVO;
 import com.hh.hhojbackendserviceclient.exception.BusinessException;
 import org.springframework.beans.BeanUtils;
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.Collection;
@@ -41,6 +40,10 @@ public interface UserFeignClient {
     @GetMapping("/get/ids")
     List<User> listByIds(@RequestParam("idList") Collection<Long> idList);
 
+    @PostMapping("/update/id")
+    boolean updateById(@RequestBody User user);
+    @RequestMapping("/logout")
+    public boolean logout(@RequestParam("token") String token);
     /**
      * 获取当前登录用户
      *

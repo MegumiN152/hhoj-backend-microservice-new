@@ -226,6 +226,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             log.info("user login failed, userAccount cannot match userPassword");
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户不存在或密码错误");
         }
+        if (user.getUserRole().equals(UserRoleEnum.BAN.getValue())){
+            log.info("该账号已被封禁："+user.getId());
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR,"该账号已被封禁");
+        }
         LoginUserVO loginUserVO = this.getLoginUserVO(user);
         // 3. 记录用户的登录态
         String token = JwtUtils.generateToken(loginUserVO.getId(),loginUserVO.getUserRole());
@@ -327,6 +331,36 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
         return true;
     }
+    /**
+     * 用户注销
+     *
+     */
+    @Override
+    public boolean userLogoutBytoken(String token) {
+        if (StringUtils.isBlank(token) || !token.startsWith("Bearer ")) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "未提供 Token");
+        }
+        token = token.substring(7); // 去除 "Bearer " 前缀
+
+        // 2. 解析 Token 获取过期时间（可选）
+        Claims claims = JwtUtils.parseToken(token);
+        Date expiration = claims.getExpiration();
+
+        // 3. 将 Token 加入黑名单（Redis）
+        long ttl = expiration.getTime() - System.currentTimeMillis();
+        if (ttl > 0) {
+            // 使用 Redis 存储黑名单，Key 格式：jwt:blacklist:<token>
+            redisTemplate.opsForValue().set(
+                    "jwt:blacklist:" + token,
+                    "logged_out",
+                    ttl,
+                    TimeUnit.MILLISECONDS
+            );
+        }
+
+        return true;
+    }
+
 
     @Override
     public LoginUserVO getLoginUserVO(User user) {

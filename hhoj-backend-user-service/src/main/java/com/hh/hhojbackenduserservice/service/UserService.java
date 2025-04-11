@@ -122,5 +122,5 @@ public interface UserService extends IService<User> {
      * @return
      */
     QueryWrapper<User> getQueryWrapper(UserQueryRequest userQueryRequest);
-
+    public boolean userLogoutBytoken(String token);
 }
