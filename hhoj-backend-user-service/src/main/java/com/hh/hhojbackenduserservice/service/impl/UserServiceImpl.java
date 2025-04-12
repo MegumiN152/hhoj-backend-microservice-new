@@ -196,7 +196,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }else if(!StringUtils.isBlank(userProfile)){
             user.setUserProfile(userProfile);
         }
-        if (!(userRole.equals(UserConstant.ADMIN_ROLE) || userRole.equals(UserConstant.DEFAULT_ROLE))) {
+        if (UserRoleEnum.getEnumByValue(userRole) ==null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户角色错误");
         }
         return this.updateById(user);
