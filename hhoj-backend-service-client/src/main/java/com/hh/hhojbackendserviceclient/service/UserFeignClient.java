@@ -60,6 +60,12 @@ public interface UserFeignClient {
         if (currentUser == null) {
             throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
         }
+        if(UserRoleEnum.BAN.getValue().equals(currentUser.getUserRole())){
+            //强制下线
+            String token = request.getHeader("Authorization");
+            this.logout(token);
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR,"该账号已被封禁");
+        }
         return currentUser;
     }
 
