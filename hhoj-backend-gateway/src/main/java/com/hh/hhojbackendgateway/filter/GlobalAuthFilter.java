@@ -76,7 +76,7 @@ public class GlobalAuthFilter implements GlobalFilter {
         // 获取请求对应的ip
         String ipAddress = getClientIp(request);
         if (blacklistManager.isBlockedIp(ipAddress)){
-            return writeError(exchange.getResponse(),"黑名单IP，禁止访问");
+            return writeError(exchange.getResponse(),"黑名单IP，禁止访问",HttpStatus.FORBIDDEN);
         }
         //判断路径中是否包含 inner，只运行内部调用
         if (authPathMatcher.match("/**/inner/**", path)) {
@@ -114,7 +114,10 @@ public class GlobalAuthFilter implements GlobalFilter {
     }
 
     private Mono<Void> writeError(ServerHttpResponse response, String message) {
-        response.setStatusCode(HttpStatus.UNAUTHORIZED);
+       return writeError(response,message,HttpStatus.UNAUTHORIZED);
+    }
+    private Mono<Void> writeError(ServerHttpResponse response, String message,HttpStatus httpStatus) {
+        response.setStatusCode(httpStatus);
         DataBuffer buffer = response.bufferFactory().wrap(message.getBytes(StandardCharsets.UTF_8));
         return response.writeWith(Mono.just(buffer));
     }
