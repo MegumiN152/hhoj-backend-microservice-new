@@ -39,8 +39,10 @@ public class JavaLanguageJudgeStrategy implements JudgeStrategy {
         judgeInfoResponse.setMessage(judgeInfoMessageEnum.getValue());
         judgeInfoResponse.setMemory(memory);
         judgeInfoResponse.setTime(time);
-        if(judgeContext.getMessage()!=null &&judgeContext.getMessage().contains(JudgeInfoMessageEnum.COMPILE_ERROR.getValue())){
-            judgeInfoMessageEnum = JudgeInfoMessageEnum.COMPILE_ERROR;
+
+        JudgeInfoMessageEnum infoMessageEnum = JudgeInfoMessageEnum.getEnumByValue(judgeContext.getMessage());
+        if (infoMessageEnum !=null){
+            judgeInfoMessageEnum=infoMessageEnum;
             judgeInfoResponse.setMessage(judgeInfoMessageEnum.getValue());
             return judgeInfoResponse;
         }

@@ -4,12 +4,14 @@ package com.hh.hhojbackendjudgeservice.codesandbox.impl;
 import com.hh.hhojbackendjudgeservice.codesandbox.CodeSandbox;
 import com.hh.hhojbackendmodel.codeSandBox.ExecuteCodeRequest;
 import com.hh.hhojbackendmodel.codeSandBox.ExecuteCodeResponse;
+import org.springframework.stereotype.Service;
 
 /**
  * @author 黄昊
  * @version 1.0
  * 第三方代码沙箱（调用非我们自己开发的沙箱）
  **/
+@Service("third")
 public class ThirdPartyCodeSandbox implements CodeSandbox {
     @Override
     public ExecuteCodeResponse executeCode(ExecuteCodeRequest executeCodeRequest) {

@@ -38,6 +38,9 @@ public class JudgeServiceImpl implements JudgeService {
     @Resource
     private JudgeManager judgeManager;
 
+    @Resource
+    private CodeSandboxFactory codeSandboxFactory;
+
     @Override
     public QuestionSubmit doJudge(long questionSubmitId) {
         QuestionSubmit questionSubmit = questionFeignClient.getQuestionSubmitById(questionSubmitId);
@@ -62,7 +65,7 @@ public class JudgeServiceImpl implements JudgeService {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "更新失败");
         }
         //调用沙箱，获取执行结果
-        CodeSandbox codeSandbox = CodeSandboxFactory.newInstance(type);
+        CodeSandbox codeSandbox = codeSandboxFactory.newInstance(type);
         codeSandbox = new CodeSandboxProxy(codeSandbox);
         String language = questionSubmit.getLanguage();
         String code = questionSubmit.getCode();

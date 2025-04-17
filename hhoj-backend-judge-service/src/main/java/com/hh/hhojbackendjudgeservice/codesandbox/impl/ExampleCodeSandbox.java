@@ -8,7 +8,9 @@ import com.hh.hhojbackendmodel.codeSandBox.ExecuteCodeResponse;
 import com.hh.hhojbackendmodel.codeSandBox.JudgeInfo;
 import com.hh.hhojbackendmodel.enums.JudgeInfoMessageEnum;
 import com.hh.hhojbackendmodel.enums.QuestionSubmitStatusEnum;
+import org.springframework.stereotype.Service;
 
+import javax.annotation.Resource;
 import java.util.List;
 
 /**
@@ -16,6 +18,7 @@ import java.util.List;
  * @version 1.0
  * 实例代码沙箱
  **/
+@Service("example")
 public class ExampleCodeSandbox implements CodeSandbox {
     @Override
     public ExecuteCodeResponse executeCode(ExecuteCodeRequest executeCodeRequest) {

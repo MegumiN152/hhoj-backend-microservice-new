@@ -1,9 +1,13 @@
 package com.hh.hhojbackendmodel.enums;
 
+import lombok.Getter;
 import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -11,6 +15,7 @@ import java.util.stream.Collectors;
  *
 
  */
+@Getter
 public enum JudgeInfoMessageEnum {
 
     ACCEPTED("成功", "Accepted"),
@@ -23,11 +28,21 @@ public enum JudgeInfoMessageEnum {
     OUTPUT_LIMIT_EXCEEDED("Output Limit Exceeded", "输出溢出"),
     DANGEROUS_OPERATION("Dangerous Operation", "危险操作"),
     RUNTIME_ERROR("Runtime Error", "运行错误"),
-    SYSTEM_ERROR("System Error", "系统错误");
+    SYSTEM_ERROR("System Error", "系统错误"),
+    LANGUAGE_ERROR("Language Error","不支持的语言"),
+    ;
 
     private final String text;
 
     private final String value;
+
+    private static final Map<String,JudgeInfoMessageEnum> VALUE_MAP=new HashMap<>();
+
+    static {
+        for (JudgeInfoMessageEnum judgeInfoMessageEnum:values()){
+            VALUE_MAP.put(judgeInfoMessageEnum.value,judgeInfoMessageEnum);
+        }
+    }
 
     JudgeInfoMessageEnum(String text, String value) {
         this.text = text;
@@ -43,29 +58,10 @@ public enum JudgeInfoMessageEnum {
         return Arrays.stream(values()).map(item -> item.value).collect(Collectors.toList());
     }
 
-    /**
-     * 根据 value 获取枚举
-     *
-     * @param value
-     * @return
-     */
-    public static JudgeInfoMessageEnum getEnumByValue(String value) {
-        if (ObjectUtils.isEmpty(value)) {
+    public static JudgeInfoMessageEnum getEnumByValue(String value){
+        if (StringUtils.isBlank(value)){
             return null;
         }
-        for (JudgeInfoMessageEnum anEnum : JudgeInfoMessageEnum.values()) {
-            if (anEnum.value.equals(value)) {
-                return anEnum;
-            }
-        }
-        return null;
-    }
-
-    public String getValue() {
-        return value;
-    }
-
-    public String getText() {
-        return text;
+        return VALUE_MAP.get(value);
     }
 }
