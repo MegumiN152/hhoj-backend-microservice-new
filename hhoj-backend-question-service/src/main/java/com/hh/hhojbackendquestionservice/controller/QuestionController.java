@@ -546,7 +546,7 @@ public class QuestionController {
                 RedisConstant.USER_SUBMITS + userId
         };
         // 使用延迟双删策略，延迟500ms
-        cacheClearTask.delayedDoubleDelete(keys, 500);
+        cacheClearTask.delayedDoubleDelete(keys, 2000);
     }
 
     /**
